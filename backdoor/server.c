@@ -24,6 +24,7 @@ void
 sighandler(int s)
 {
   close(ln);
+  exit(0);
 }
 
 int
@@ -36,7 +37,7 @@ main()
   ln = listentcp("7777");
   if (ln == -1)
     {
-      perror(strerror(errno));
+      perror("listentcp()");
       exit(1);
     }
 
@@ -47,7 +48,7 @@ main()
       conn = accept(ln, (struct sockaddr *)&addr, &addrlen);
       if (conn == -1)
         {
-          perror(strerror(errno));
+          perror("accept()");
           exit(1);
         }
 
@@ -100,23 +101,24 @@ pty(int conn)
   else
     {
       int n, i;
+      int fdi, fdo;
       char buf;
       fd_set fds, readfds;
+
 
       FD_ZERO(&fds);
       FD_SET(conn, &fds);
       FD_SET(fdm, &fds);
 
       readfds = fds;
-
-      int fdi, fdo;
       for (;;)
         {
           fds = readfds;
           n = select(FD_SETSIZE, &fds, nil, nil, nil);
           if (n == -1)
             break;
-          if (n == 0) continue;
+          if (n == 0)
+            continue;
 
           if (FD_ISSET(conn, &fds))
             fdi = conn, fdo = fdm;

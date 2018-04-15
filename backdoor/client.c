@@ -40,7 +40,7 @@ main()
   conn = dial("mester.pw", "7777");
   if (conn == -1)
     {
-      perror(strerror(errno));
+      perror("dial()");
       exit(1);
     }
 
