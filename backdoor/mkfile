@@ -11,3 +11,9 @@ all:Q:
   do
     $CC $CFLAGS -o $i $i.c
   done
+
+clean:Q:
+  for i in $TARG
+  do
+    rm -f $i
+  done

@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <signal.h>
+#include <getopt.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -27,14 +28,37 @@ sighandler(int s)
   exit(0);
 }
 
-int
-main()
+void
+help(char *arg0)
 {
+  fprintf(stderr, "%s [options]\n"
+      "  -p: Port\n", arg0);
+  exit(0);
+}
+
+int
+main(int argc, char *argv[])
+{
+  int n;
+  char *port = nil;
+
+  while ((n = getopt(argc, argv, "p:")) != -1)
+    {
+      switch (n)
+        {
+          case 'p':
+            port = optarg;
+            break;
+        }
+    }
+  if (port == nil)
+    help(argv[0]);
+
   int conn;
   struct sockaddr_in addr;
   socklen_t addrlen;
 
-  ln = listentcp("7777");
+  ln = listentcp(port);
   if (ln == -1)
     {
       perror("listentcp()");

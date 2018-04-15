@@ -34,10 +34,39 @@ sighandler(int s)
   close(conn);
 }
 
-int
-main()
+void
+help(char *arg0)
 {
-  conn = dial("mester.pw", "7777");
+  fprintf(stderr, "%s [options]\n"
+      "  -p: Remote port\n"
+      "  -h: Remote host\n", arg0);
+  exit(0);
+}
+
+int
+main(int argc, char *argv[])
+{
+  int n;
+  char *host, *port;
+
+  host = port = nil;
+
+  while ((n = getopt(argc, argv, "p:h:")) != -1)
+    {
+      switch (n)
+        {
+          case 'h':
+            host = optarg;
+            break;
+          case 'p':
+            port = optarg;
+            break;
+        }
+    }
+  if (host == nil || port == nil)
+    help(argv[0]);
+
+  conn = dial(host, port);
   if (conn == -1)
     {
       perror("dial()");
