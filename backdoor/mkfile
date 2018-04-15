@@ -1,0 +1,13 @@
+
+TARG=\
+  client\
+  server\
+
+CFLAGS=-O2 -pipe -lutil
+CC=gcc
+
+all:Q:
+  for i in $TARG
+  do
+    $CC $CFLAGS -o $i $i.c
+  done
