@@ -3,7 +3,7 @@ TARG=\
   client\
   server\
 
-CFLAGS=-O2 -pipe -lutil
+CFLAGS=-O2 -pipe -lutil -march=native
 CC=gcc
 
 all:Q:
