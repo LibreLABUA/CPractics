@@ -87,11 +87,11 @@ listentcp(char *port)
   int n, conn;
   struct addrinfo addr = {
     AI_PASSIVE, AF_INET, SOCK_STREAM, 0,
-    0, NULL, NULL, NULL
+    0, nil, nil, nil
   };
   struct addrinfo *res, *p;
 
-  n = getaddrinfo(NULL, port, &addr, &res);
+  n = getaddrinfo(nil, port, &addr, &res);
   if (n == -1)
     return -1;
 

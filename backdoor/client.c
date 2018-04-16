@@ -87,7 +87,7 @@ dial(char *host, char *port)
   int n, conn;
   struct addrinfo addr = {
     0, AF_INET, SOCK_STREAM, 0,
-    0, NULL, NULL, NULL
+    0, nil, nil, nil
   };
   struct addrinfo *res, *p;
 
