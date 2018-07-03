@@ -36,21 +36,26 @@ help(char *arg0)
   exit(0);
 }
 
+void
+panic(const char *err)
+{
+  perror(err);
+  exit(1);
+}
+
 int
 main(int argc, char *argv[])
 {
   int n;
   char *port = nil;
 
-  while ((n = getopt(argc, argv, "p:")) != -1)
-    {
-      switch (n)
-        {
-          case 'p':
-            port = optarg;
-            break;
-        }
+  while((n = getopt(argc, argv, "p:")) != -1){
+    switch(n){
+      case 'p':
+        port = optarg;
+        break;
     }
+  }
   if (port == nil)
     help(argv[0]);
 
@@ -59,25 +64,18 @@ main(int argc, char *argv[])
   socklen_t addrlen;
 
   ln = listentcp(port);
-  if (ln == -1)
-    {
-      perror("listentcp()");
-      exit(1);
-    }
+  if(ln == -1)
+    panic("listentcp()");
 
   signal(SIGINT, sighandler);
 
-  for (;;)
-    {
-      conn = accept(ln, (struct sockaddr *)&addr, &addrlen);
-      if (conn == -1)
-        {
-          perror("accept()");
-          exit(1);
-        }
-
-      pty(conn);
-    }
+  for(;;){
+    conn = accept(ln, (struct sockaddr *)&addr, &addrlen);
+    if(conn == -1)
+      panic("accept()");
+    printf("Client %s connected\n", inet_ntoa(addr.sin_addr));
+    pty(conn); // only handle one client at the same time
+  }
   close(ln);
 }
 
@@ -92,19 +90,17 @@ listentcp(char *port)
   struct addrinfo *res, *p;
 
   n = getaddrinfo(nil, port, &addr, &res);
-  if (n == -1)
+  if(n == -1)
     return -1;
 
-  for (p = res; p != nil; p = p->ai_next)
-    {
-      conn = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-      if (conn != -1)
-        if (bind(conn, p->ai_addr, p->ai_addrlen) != -1)
-          break;
-
-      conn = -1;
-    }
-  if (conn == -1)
+  for(p = res; p != nil; p = p->ai_next){
+    conn = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (conn != -1)
+      if (bind(conn, p->ai_addr, p->ai_addrlen) != -1)
+        break;
+    conn = -1;
+  }
+  if(conn == -1)
     return -1;
 
   listen(conn, 1);
@@ -117,46 +113,41 @@ void
 pty(int conn)
 {
   int fdm;
-  if (forkpty(&fdm, nil, nil, nil) == 0)
-    {
-      char *arg[] = {nil};
-      execvp("/bin/bash", arg);
+  if(forkpty(&fdm, nil, nil, nil) == 0){
+    char *arg[] = {nil};
+    execvp("/bin/bash", arg);
+  } else {
+    int n, i;
+    int fdi, fdo;
+    char buf;
+    fd_set fds, readfds;
+
+    FD_ZERO(&fds);
+    FD_SET(conn, &fds);
+    FD_SET(fdm, &fds);
+
+    readfds = fds;
+    for(;;){
+      fds = readfds;
+      n = select(FD_SETSIZE, &fds, nil, nil, nil);
+      if(n == -1)
+        break;
+      if(n == 0)
+        continue;
+
+      if(FD_ISSET(conn, &fds))
+        fdi = conn, fdo = fdm;
+      else
+        fdi = fdm, fdo = conn;
+
+      n = read(fdi, &buf, 1);
+      if(n < 1)
+        break;
+      n = write(fdo, &buf, 1);
+      if(n < 1)
+        break;
     }
-  else
-    {
-      int n, i;
-      int fdi, fdo;
-      char buf;
-      fd_set fds, readfds;
-
-
-      FD_ZERO(&fds);
-      FD_SET(conn, &fds);
-      FD_SET(fdm, &fds);
-
-      readfds = fds;
-      for (;;)
-        {
-          fds = readfds;
-          n = select(FD_SETSIZE, &fds, nil, nil, nil);
-          if (n == -1)
-            break;
-          if (n == 0)
-            continue;
-
-          if (FD_ISSET(conn, &fds))
-            fdi = conn, fdo = fdm;
-          else
-            fdi = fdm, fdo = conn;
-
-          n = read(fdi, &buf, 1);
-          if (n < 1)
-            break;
-          n = write(fdo, &buf, 1);
-          if (n < 1)
-            break;
-        }
-    }
+  }
   close(fdm);
   close(conn);
 }

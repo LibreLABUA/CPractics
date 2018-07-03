@@ -20,6 +20,7 @@ struct termios term, ancterm;
 
 int dial(char *, char *);
 void handle(int);
+void panic(const char *);
 
 void
 restore()
@@ -35,7 +36,7 @@ sighandler(int s)
 }
 
 void
-help(char *arg0)
+help(const char *arg0)
 {
   fprintf(stderr, "%s [options]\n"
       "  -p: Remote port\n"
@@ -50,35 +51,40 @@ main(int argc, char *argv[])
   char *host, *port;
 
   host = port = nil;
-
-  while ((n = getopt(argc, argv, "p:h:")) != -1)
-    {
-      switch (n)
-        {
-          case 'h':
-            host = optarg;
-            break;
-          case 'p':
-            port = optarg;
-            break;
-        }
+  /* Getting simple arguments */
+  while ((n = getopt(argc, argv, "p:h:")) != -1){
+    switch (n){
+      case 'h':
+        host = optarg;
+        break;
+      case 'p':
+        port = optarg;
+        break;
     }
-  if (host == nil || port == nil)
+  }
+  if(host == nil || port == nil)
     help(argv[0]);
 
+  /* Dialing with host */
   conn = dial(host, port);
-  if (conn == -1)
-    {
-      perror("dial()");
-      exit(1);
-    }
-
+  if(conn == -1)
+    panic("dial()");
+  /* Configuring SIGINT interruption before stablishing connection */
   signal(SIGINT, sighandler);
 
   printf("connected\n");
+  /* Handle connection */
   handle(conn);
+  /* Close and restore terminal */
   close(conn);
   restore();
+}
+
+void
+panic(const char *err)
+{
+  perror(err);
+  exit(1);
 }
   
 int
@@ -90,22 +96,31 @@ dial(char *host, char *port)
     0, nil, nil, nil
   };
   struct addrinfo *res, *p;
-
+  /* Getting address info */
   n = getaddrinfo(host, port, &addr, &res);
   if (n != 0)
     return -1;
-
-  for (p = res; p != nil; p = p->ai_next)
-    {
-      conn = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-      if (conn != -1)
-        if (connect(conn, p->ai_addr, p->ai_addrlen) != -1)
-          break;
-      conn = -1;
-    }
-
+  for(p = res; p != nil; p = p->ai_next){
+    conn = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if(conn != -1)
+      if(connect(conn, p->ai_addr, p->ai_addrlen) != -1)
+        break; // good address 
+    conn = -1;
+  }
   freeaddrinfo(res);
   return conn;
+}
+
+void
+makeraw(int fd)
+{
+  /* Get terminal attributes */
+  tcgetattr(fd, &term);
+  ancterm = term;
+  /* Make it raw for pty connection */
+  cfmakeraw(&term);
+  /* Set attributes */
+  tcsetattr(fd, TCSANOW, &term);
 }
 
 void
@@ -115,11 +130,9 @@ handle(int conn)
   char buf;
   fd_set fds, readfds;
 
-  tcgetattr(STDIN_FILENO, &term);
-  ancterm = term;
-  cfmakeraw(&term);
-  tcsetattr(STDIN_FILENO, TCSANOW, &term);
+  makeraw(STDIN_FILENO);
 
+  /* Creating descriptor event handler */
   FD_ZERO(&fds);
   FD_SET(conn, &fds);
   FD_SET(STDIN_FILENO, &fds);
@@ -127,24 +140,23 @@ handle(int conn)
   readfds = fds;
 
   int fdi, fdo;
-  for (;;)
-    {
-      fds = readfds;
-      n = select(FD_SETSIZE, &fds, nil, nil, nil);
-      if (n == -1)
-        break;
-      if (n == 0) continue;
-
-      if (FD_ISSET(conn, &fds))
-        fdi = conn, fdo = STDOUT_FILENO;
-      else
-        fdi = STDIN_FILENO, fdo = conn;
-
-      n = read(fdi, &buf, 1);
-      if (n < 1)
-        break;
-      n = write(fdo, &buf, 1);
-      if (n < 1)
-        break;
-    }
+  for(;;){
+    fds = readfds;
+    n = select(FD_SETSIZE, &fds, nil, nil, nil);
+    if(n == -1)
+      break; // error
+    if(n == 0)
+      continue; // closed
+    /* If conn event */
+    if(FD_ISSET(conn, &fds))
+      fdi = conn, fdo = STDOUT_FILENO;
+    else
+      fdi = STDIN_FILENO, fdo = conn;
+    n = read(fdi, &buf, 1);
+    if(n < 1)
+      break;
+    n = write(fdo, &buf, 1);
+    if(n < 1)
+      break;
+  }
 }
